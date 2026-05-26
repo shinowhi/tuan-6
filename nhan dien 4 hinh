@@ -1,0 +1,66 @@
+import os
+import cv2
+import numpy as np
+from sklearn.model_selection import train_test_split
+from keras.models import Sequential
+from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from keras.utils import to_categorical
+
+DATA_DIR = r"D:\downloadD\hinh hoc\shapes" 
+CLASSES = ['circle', 'square', 'triangle', 'star']
+
+images = []
+labels = []
+
+print("🔄 Đang nạp toàn bộ ảnh từ thư mục máy tính...")
+for label_idx, class_name in enumerate(CLASSES):
+    class_dir = os.path.join(DATA_DIR, class_name)
+    if not os.path.exists(class_dir): continue
+    
+    for img_name in os.listdir(class_dir):
+        if not img_name.lower().endswith(('.jpg', '.jpeg', '.png')): continue
+        img_path = os.path.join(class_dir, img_name)
+        img = cv2.imread(img_path)
+        if img is None: continue
+        
+        # Nén ảnh về 32x32 và giữ nguyên cấu trúc ma trận vuông (32, 32, 3)
+        img = cv2.resize(img, (32, 32))
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        images.append(img)
+        labels.append(label_idx)
+
+X = np.array(images)
+y = np.array(labels)
+
+# Chia dữ liệu và chuẩn hóa về mức [0, 1]
+x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+x_train = x_train.astype('float32') / 255.0
+x_test = x_test.astype('float32') / 255.0
+
+y_train_processed = to_categorical(y_train, 4)
+y_test_processed = to_categorical(y_test, 4)
+
+# ========================================================
+# CẤU TRÚC MẠNG CNN - CHUYÊN GIA NHẬN DIỆN HÌNH ẢNH
+# ========================================================
+model = Sequential([
+    # Lớp trích xuất đặc trưng (Cạnh, góc, đường cong)
+    Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)),
+    MaxPooling2D((2, 2)),
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    
+    # Lớp phân loại
+    Flatten(),
+    Dense(128, activation='relu'),
+    Dropout(0.3), # Chống học vẹt
+    Dense(4, activation='softmax')
+])
+
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+print("🚀 Đang huấn luyện bộ não CNN siêu cấp...")
+model.fit(x_train, y_train_processed, epochs=15, batch_size=32, validation_data=(x_test, y_test_processed))
+
+model.save('my_shape_model.h5')
+print("🎉 Đã cập nhật xong file bộ não mới 'my_shape_model.h5'!")
